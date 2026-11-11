@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="kk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Робот лабиринті (Robot Maze Challenge)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{color-scheme:dark;--bg:#0b1435;--card:#101a42;--line:#1b2a63;--mut:#9fb0e6;--blue:#0296f8;--g:linear-gradient(90deg,#0762cc,#0877e0)}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;font:15px/1.5 Inter,system-ui,sans-serif;color:#fff;background:radial-gradient(circle at 0 0,rgba(2,150,248,.22),transparent 45%),radial-gradient(circle at 100% 100%,rgba(2,150,248,.12),transparent 45%),var(--bg);background-attachment:fixed}
+.bar{position:fixed;left:0;right:0;bottom:0;height:5px;background:var(--blue);z-index:9}
+.app{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start;padding:28px 28px 44px;max-width:1400px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:24px;box-shadow:0 12px 30px rgba(3,6,25,.45);padding:22px}
+aside{flex:0 0 300px}main{flex:1 1 560px;min-width:0}
+h1{margin:0;font-size:2.1rem;line-height:1.15}h1 span{color:var(--blue);font-size:1.2rem;font-weight:600}
+.sub,.mut{color:var(--mut)}.sub{margin:2px 0 18px}
+h3{margin:18px 0 8px;font-size:1rem;color:var(--blue)}
+label{display:block;margin:10px 0 2px;color:var(--mut);font-size:13px}label b{color:#fff;float:right}
+input[type=range]{width:100%;accent-color:var(--blue)}
+input[type=number],select{width:100%;padding:9px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:#fff;font:inherit}
+button{border:0;border-radius:14px;padding:11px 22px;font:600 15px Inter,system-ui,sans-serif;color:#fff;background:var(--g);box-shadow:0 8px 20px rgba(2,150,248,.35);cursor:pointer}
+button:hover{filter:brightness(1.12)}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}.tabs button{background:transparent;box-shadow:none;color:var(--mut)}.tabs button.on{background:var(--g);color:#fff;box-shadow:0 8px 20px rgba(2,150,248,.35)}
+.row{display:flex;flex-wrap:wrap;gap:20px;margin-bottom:20px}.row>*{flex:1 1 240px;min-width:0}
+.m{padding:16px 22px}.m b{display:block;font-size:30px;color:var(--blue);margin-top:4px}
+.al{border:1px solid var(--line);border-radius:18px;padding:12px 16px;background:var(--card);margin-bottom:16px}.al.w{border-color:#f59e0b}
+canvas{display:block;max-width:100%;border-radius:14px;margin:12px auto 0}
+table{width:100%;border-collapse:collapse}th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line)}th{color:var(--mut);font-weight:600;font-size:13px}
+.bars{display:flex;align-items:flex-end;justify-content:space-around;height:180px;margin-top:10px}.bars div{text-align:center;font-size:12px}.bars i{display:block;width:38px;border-radius:10px;margin:4px auto;background:#f59e0b}
+</style></head><body>
+<div class="app"><aside class="card" id="side"></aside>
+<main><h1>Робот лабиринті <span>(Robot Maze Challenge)</span></h1>
+<p class="sub">QAIRU · Жасанды интеллект негіздері (AI Fundamentals) — іздеу (A*, DFS, BFS, UCS) · төбеге өрмелеу (Hill Climbing) · Q-оқыту (Q-learning)</p>
+<div class="tabs"><button onclick="S.tab=0;render()">🔍 Іздеу (Search)</button><button onclick="S.tab=1;render()">🧠 Q-оқыту (Q-learning)</button><button onclick="S.tab=2;render()">⛰️ Төбеге өрмелеу (Hill Climbing)</button><button onclick="S.tab=3;render()">📊 Салыстыру</button></div>
+<div id="view"></div></main></div><div class="bar"></div>
+<script>
+const $=s=>document.querySelector(s),COST=[1,0,5],DIRS=[[-1,0],[1,0],[0,-1],[0,1]];
+const NAMES={bfs:"Енге іздеу (BFS)",dfs:"Тереңдікке іздеу (DFS)",ucs:"Бірыңғай құн бойынша іздеу (UCS)",astar:"Эвристикалық іздеу (A*)"};
+const EXPL={bfs:"Енге іздеу (BFS) қадам санын азайтады, бірақ ұяшық құнын (балшықты) ескермейді — жол оңтайлы болмауы мүмкін.",
+dfs:"Тереңдікке іздеу (DFS) стек қолданады: жадты аз жұмсайды, бірақ жол ұзақ және оңтайлы емес болуы мүмкін.",
+ucs:"Бірыңғай құн бойынша іздеу (UCS) жиынтық құн g(n) бойынша жүреді: құн жағынан оңтайлы, бірақ көп түйін қарастырады.",
+astar:"Эвристикалық іздеу (A*) f(n)=g(n)+h(n) қолданады, h — Манхэттен қашықтығы (Manhattan). Оңтайлы әрі UCS-тен аз түйін қарастырады."};
+let S={tab:0,M:null,ver:0,agent:null,hc:null,algo:"astar",r:null};
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function randomMaze(R,C,wp,mp,seed,s,t){const g=new Uint8Array(R*C),r=mulberry32(seed);for(let i=0;i<g.length;i++){const x=r();g[i]=x<wp?1:x<wp+mp?2:0}g[s]=0;g[t]=0;return{R,C,g,s,t}}
+function nb(M,u){const r=u/M.C|0,c=u%M.C,o=[];for(const[a,b]of DIRS){const y=r+a,x=c+b;if(y>=0&&y<M.R&&x>=0&&x<M.C){const v=y*M.C+x;if(M.g[v]!=1)o.push([v,COST[M.g[v]]])}}return o}
+function fin(M,par,exp,t0,g){let path=null,cost=null;if(g>=0){path=[];for(let x=g;x!=-1;x=par[x])path.push(x);path.reverse();cost=0;for(let i=1;i<path.length;i++)cost+=COST[M.g[path[i]]]}return{path,cost,exp,ms:performance.now()-t0}}
+class H{constructor(){this.a=[]}push(x){const a=this.a;a.push(x);let i=a.length-1;while(i>0){const p=(i-1)>>1;if(a[p][0]<=a[i][0])break;[a[p],a[i]]=[a[i],a[p]];i=p}}
+pop(){const a=this.a,t=a[0],l=a.pop();if(a.length){a[0]=l;let i=0;for(;;){let m=i;const L=2*i+1,R=L+1;if(L<a.length&&a[L][0]<a[m][0])m=L;if(R<a.length&&a[R][0]<a[m][0])m=R;if(m==i)break;[a[m],a[i]]=[a[i],a[m]];i=m}}return t}get n(){return this.a.length}}
+const man=(M,a,b)=>Math.abs((a/M.C|0)-(b/M.C|0))+Math.abs(a%M.C-b%M.C);
+function bfs(M){const t0=performance.now(),par=new Int32Array(M.R*M.C).fill(-2),q=[M.s],exp=[];par[M.s]=-1;for(let h=0;h<q.length;h++){const u=q[h];exp.push(u);if(u==M.t)return fin(M,par,exp,t0,u);for(const[v]of nb(M,u))if(par[v]==-2){par[v]=u;q.push(v)}}return fin(M,par,exp,t0,-1)}
+function dfs(M){const t0=performance.now(),N=M.R*M.C,par=new Int32Array(N).fill(-2),vis=new Uint8Array(N),st=[M.s],exp=[];par[M.s]=-1;while(st.length){const u=st.pop();if(vis[u])continue;vis[u]=1;exp.push(u);if(u==M.t)return fin(M,par,exp,t0,u);const ns=nb(M,u);for(let i=ns.length-1;i>=0;i--){const v=ns[i][0];if(!vis[v]){par[v]=u;st.push(v)}}}return fin(M,par,exp,t0,-1)}
+function best(M,uh){const t0=performance.now(),N=M.R*M.C,par=new Int32Array(N).fill(-2),gc=new Float64Array(N).fill(Infinity),dn=new Uint8Array(N),exp=[],h=new H;par[M.s]=-1;gc[M.s]=0;h.push([0,0,M.s]);
+while(h.n){const[,c,u]=h.pop();if(dn[u])continue;dn[u]=1;exp.push(u);if(u==M.t)return fin(M,par,exp,t0,u);for(const[v,w]of nb(M,u)){const n=c+w;if(n<gc[v]){gc[v]=n;par[v]=u;h.push([n+(uh?man(M,v,M.t):0),n,v])}}}return fin(M,par,exp,t0,-1)}
+const ALG={bfs,dfs,ucs:M=>best(M,0),astar:M=>best(M,1)};
+const pc=(M,p)=>p.slice(1).reduce((s,u)=>s+COST[M.g[u]],0);
+function qlearn(M,ep,al,ga,eps,seed){const t0=performance.now(),N=M.R*M.C,Q=new Float64Array(N*4),rnd=mulberry32(seed),rw=[],st=[],mx=N*4;
+const step=(s,a)=>{const y=(s/M.C|0)+DIRS[a][0],x=s%M.C+DIRS[a][1];if(y<0||y>=M.R||x<0||x>=M.C||M.g[y*M.C+x]==1)return[s,-5,0];const v=y*M.C+x,d=v==M.t;return[v,-COST[M.g[v]]+(d?100:0),d]};
+const pick=s=>{if(rnd()<eps)return rnd()*4|0;let b=-1e18,c=[];for(let a=0;a<4;a++){const q=Q[s*4+a];if(q>b){b=q;c=[a]}else if(q==b)c.push(a)}return c[rnd()*c.length|0]};
+for(let e=0;e<ep;e++){let s=M.s,tot=0,t=0;while(t<mx){t++;const a=pick(s),[s2,r,d]=step(s,a),mq=d?0:Math.max(Q[s2*4],Q[s2*4+1],Q[s2*4+2],Q[s2*4+3]);Q[s*4+a]+=al*(r+ga*mq-Q[s*4+a]);s=s2;tot+=r;if(d)break}rw.push(tot);st.push(t)}
+let s=M.s,path=[s];const seen=new Set(path);while(s!=M.t){let b=0;for(let a=1;a<4;a++)if(Q[s*4+a]>Q[s*4+b])b=a;const s2=step(s,b)[0];if(seen.has(s2)){path=null;break}seen.add(s2);path.push(s2);s=s2}
+return{rw,st,path,secs:(performance.now()-t0)/1000}}
+const fit=M=>{const r=best(M,1);return r.path?r.exp.length:-1};
+function hill(M,it,rs,seed){const rnd=mulberry32(seed),hist=[];let bst=null,bf=-2;for(let k=0;k<rs;k++){let cur=k?randomMaze(M.R,M.C,.2,.1,rnd()*1e6|0,M.s,M.t):{...M,g:M.g.slice()},cf=fit(cur);
+for(let i=0;i<it;i++){const u=rnd()*M.R*M.C|0;if(u!=M.s&&u!=M.t){const cd={...cur,g:cur.g.slice()},o=cd.g[u];cd.g[u]=[0,1,2].filter(v=>v!=o)[rnd()*2|0];const f=fit(cd);if(f>cf){cur=cd;cf=f}}hist.push(Math.max(bf,cf))}
+if(cf>bf){bst=cur;bf=cf}}return{best:bst,hist}}
+/* ---------- интерфейс ---------- */
+const val=id=>+$('#'+id).value,set=(id,v)=>$('#'+id).value=v;
+const sl=(id,l,a,b,st,v)=>`<label for="${id}">${l}<b id="${id}v">${v}</b></label><input type="range" id="${id}" min="${a}" max="${b}" step="${st}" value="${v}" oninput="$('#${id}v').textContent=this.value">`;
+const nu=(id,l,v,mx)=>`<label for="${id}">${l}</label><input type="number" id="${id}" min="0" max="${mx}" value="${v}" onchange="render()">`;
+$('#side').innerHTML=`<h3 style="margin-top:0">Лабиринт</h3>`+sl('R','Жол саны',5,25,1,12)+sl('C','Баған саны',5,25,1,12)+sl('wp','Қабырға тығыздығы (өтпейді)',0,.4,.05,.2)+sl('mp','Балшық тығыздығы (құны 5)',0,.3,.05,.1)
++`<label for="sd">Кездейсоқ сан (seed)</label><input type="number" id="sd" value="0" min="0" max="9999"><p><button onclick="gen()">🎲 Жаңа лабиринт</button></p><h3>Бастау және мақсат (Start / Goal)</h3>`
++nu('sr','Бастау: жол (Start)',0,11)+nu('sc','Бастау: баған',0,11)+nu('gr','Мақсат: жол (Goal)',11,11)+nu('gc','Мақсат: баған',11,11)
++`<h3>Q-оқыту (Q-learning)</h3>`+sl('ep','Эпизодтар',100,3000,100,800)+sl('al','α — оқу жылдамдығы (learning rate)',.05,1,.05,.5)+sl('ga','γ — дисконт коэффициенті (discount)',.5,.99,.01,.95)+sl('eps','ε — зерттеу ықтималдығы (exploration)',0,.5,.05,.2)
++`<h3>Төбеге өрмелеу (Hill Climbing)</h3>`+sl('it','Итерация саны',50,1000,50,300)+sl('rs','Қайта бастау саны (random restart)',1,5,1,3);
+const LEG=`<p class="mut"><span style="color:#9fb0e6">□</span> бос ұяшық (құны 1) &nbsp; <span style="color:#f59e0b">■</span> балшық (құны 5) &nbsp; <span style="color:#e8ecff">■</span> қабырға (өтпейді, құны шексіз ∞) &nbsp; <span style="color:#34d399">●</span> бастау, Б (құны 0) &nbsp; <span style="color:#fbbf24">●</span> мақсат, М (құны 1) &nbsp; <span style="color:#0296f8">━</span> табылған жол<br>Құн — ұяшыққа кіргенде төленетін баға. Жол құны = жолдағы ұяшықтар құнының қосындысы.</p>`;
+const met=(l,v)=>`<div class="card m"><span class="mut">${l}</span><b>${v}</b></div>`,key=()=>JSON.stringify([S.M.s,S.M.t,S.ver]);
+function gen(){const R=val('R'),C=val('C');S.M=randomMaze(R,C,val('wp'),val('mp'),val('sd'),0,R*C-1);S.ver++;S.agent=S.hc=null;set('sr',0);set('sc',0);set('gr',R-1);set('gc',C-1);for(const i of['sr','gr'])$('#'+i).max=R-1;for(const i of['sc','gc'])$('#'+i).max=C-1;render()}
+function sync(){const M=S.M,cl=(v,m)=>Math.max(0,Math.min(m-1,Math.round(v)||0));M.s=cl(val('sr'),M.R)*M.C+cl(val('sc'),M.C);M.t=cl(val('gr'),M.R)*M.C+cl(val('gc'),M.C);
+return M.g[M.s]==1?"Бастау нүктесі (Start) қабырғада тұр.":M.g[M.t]==1?"Мақсат нүктесі (Goal) қабырғада тұр.":M.s==M.t?"Бастау және мақсат нүктелері бірдей болмауы керек (Start ≠ Goal).":""}
+function render(){document.querySelectorAll('.tabs button').forEach((b,i)=>b.classList.toggle('on',i==S.tab));const e=sync(),v=$('#view');if(e){v.innerHTML=`<div class="al w">${e}</div>`;return}[tSearch,tQ,tHC,tCmp][S.tab](v)}
+function draw(cv,M,exp,path){const cs=Math.floor(520/Math.max(M.R,M.C)),x=cv.getContext('2d'),P=u=>[(u%M.C+.5)*cs,((u/M.C|0)+.5)*cs];cv.width=cs*M.C;cv.height=cs*M.R;
+for(let u=0;u<M.R*M.C;u++){const a=u%M.C*cs,b=(u/M.C|0)*cs;x.fillStyle=['#0b1435','#e8ecff','#af7416'][M.g[u]];x.fillRect(a,b,cs,cs);x.strokeStyle='#172457';x.strokeRect(a,b,cs,cs)}
+x.fillStyle='rgba(2,150,248,.45)';for(const u of exp||[]){const[a,b]=P(u);x.beginPath();x.arc(a,b,cs*.18,0,7);x.fill()}
+if(path){x.strokeStyle='#0296f8';x.lineWidth=Math.max(3,cs*.18);x.lineCap=x.lineJoin='round';x.beginPath();path.forEach((u,i)=>{const[a,b]=P(u);i?x.lineTo(a,b):x.moveTo(a,b)});x.stroke()}
+for(const[u,c,l]of[[M.s,'#34d399','Б'],[M.t,'#fbbf24','М']]){const[a,b]=P(u);x.fillStyle=c;x.beginPath();x.arc(a,b,cs*.36,0,7);x.fill();x.fillStyle='#0b1435';x.font=`700 ${cs*.45|0}px Inter,sans-serif`;x.textAlign='center';x.textBaseline='middle';x.fillText(l,a,b+1)}}
+function line(cv,d,lb){const x=cv.getContext('2d'),W=cv.width,Hh=cv.height,mn=Math.min(...d),mx=Math.max(...d),X=i=>40+i/(d.length-1||1)*(W-50),Y=v=>Hh-34-(v-mn)/(mx-mn||1)*(Hh-50);x.clearRect(0,0,W,Hh);x.fillStyle='#9fb0e6';x.font='12px Inter,sans-serif';x.textAlign='left';x.fillText(mx.toFixed(0),2,16);x.fillText(mn.toFixed(0),2,Hh-34);x.fillText(lb,W/2-20,Hh-8);x.strokeStyle='#1b2a63';x.strokeRect(40,10,W-50,Hh-44);x.strokeStyle='#0296f8';x.lineWidth=2.5;x.beginPath();d.forEach((v,i)=>i?x.lineTo(X(i),Y(v)):x.moveTo(X(i),Y(v)));x.stroke()}
+const mav=(a,k)=>a.map((_,i)=>{const s=a.slice(Math.max(0,i-k+1),i+1);return s.reduce((p,c)=>p+c,0)/s.length});
+function stp(n){$('#kv').textContent=n;draw($('#cv'),S.M,S.r.exp.slice(0,n),n==S.r.exp.length?S.r.path:null)}
+function tSearch(v){const r=S.r=ALG[S.algo](S.M),n=r.exp.length;
+v.innerHTML=`<div class="card"><label for="alg">Алгоритм</label><select id="alg" onchange="S.algo=this.value;render()">${Object.entries(NAMES).map(([k,t])=>`<option value="${k}"${k==S.algo?' selected':''}>${t}</option>`).join('')}</select></div><div class="al" style="margin-top:20px">${EXPL[S.algo]}</div>`
++(r.path?'':'<div class="al w">Жол табылмады: лабиринт жабық. Қабырғаны азайтыңыз немесе жаңа лабиринт жасаңыз.</div>')
++`<div class="row">${met('Жол құны',r.path?r.cost:'—')}${met('Қарастырылған түйін',n)}${met('Уақыт, мс',r.ms.toFixed(3))}</div><div class="card"><label for="k">Қадам (қарастырылған түйіндер)<b id="kv">${n}</b></label><input type="range" id="k" min="0" max="${n}" value="${n}" oninput="stp(+this.value)"><canvas id="cv"></canvas>${LEG}</div>`;stp(n)}
+function trainQ(){S.agent={...qlearn(S.M,val('ep'),val('al'),val('ga'),val('eps'),val('sd')),key:key()};render()}
+function tQ(v){const M=S.M,a=S.agent&&S.agent.key==key()?S.agent:null;
+v.innerHTML=`<div class="al">Агент лабиринтті алдын ала білмейді: сыйақы арқылы Q(s,a) кестесін жаңартып үйренеді. Қадам сыйақысы = −ұяшық құны, мақсат +100, қабырғаға соғылу −5.</div><p><button onclick="trainQ()">▶ Оқытуды бастау</button></p>`
++(S.agent&&!a?'<div class="al w">Бастау не мақсат нүктесі өзгерді (Start / Goal) — агентті қайта оқытыңыз.</div>':'')
++(a?(a.path?'':'<div class="al w">Агент жолды әлі үйренбеді: эпизод санын көбейтіңіз.</div>')+`<div class="row">${met('Жол құны',a.path?pc(M,a.path):'—')}${met('Жол қадамы',a.path?a.path.length-1:'—')}${met('Оқыту уақыты, с',a.secs.toFixed(2))}</div><div class="row"><div class="card"><canvas id="cv"></canvas>${LEG}</div><div class="card"><b>Эпизод сыйақысы</b> <span class="mut">(20 эпизодтық орташа): өсу = агент үйреніп жатыр</span><canvas id="ch" width="520" height="260"></canvas></div></div>`:'<p class="mut">Параметрлерді таңдап, оқытуды бастаңыз.</p>');
+if(a){draw($('#cv'),M,0,a.path);line($('#ch'),mav(a.rw,20),'эпизод')}}
+function runHC(){const b=fit(S.M),r=hill(S.M,val('it'),val('rs'),val('sd'));S.M=r.best;S.ver++;S.agent=null;S.hc={before:b,hist:r.hist};render()}
+function tHC(v){const h=S.hc;
+v.innerHTML=`<div class="al">Мақсат: A* үшін ең қиын лабиринтті табу. Бағалау функциясы (fitness) = A* қарастырған түйін саны (−1 = жол жоқ). Бір ұяшықты өзгертеді, тек жақсарса қабылдайды; қайта бастау (random restart) жергілікті максимумнан шығуға көмектеседі.</div><p><button onclick="runHC()">⛰️ Төбеге өрмелеуді іске қосу</button></p>`
++(h?`<div class="row">${met('Бағалау (fitness): бұрын → кейін',h.before+' → '+h.hist[h.hist.length-1])}</div>`:'')
++`<div class="row"><div class="card"><canvas id="cv"></canvas>${LEG}</div>`+(h?`<div class="card"><b>Бағалаудың өсуі</b><canvas id="ch" width="520" height="260"></canvas><p class="mut">Жаңа лабиринт барлық қойындыларда қолданылады.</p></div>`:'')+'</div>';
+draw($('#cv'),S.M,0,0);if(h)line($('#ch'),h.hist,'итерация')}
+function tCmp(v){const M=S.M,rows=Object.keys(NAMES).map(k=>[NAMES[k],ALG[k](M)]),a=S.agent&&S.agent.key==key()?S.agent:null,
+T=rows.map(([n,r])=>`<tr><td>${n}</td><td>${r.path?r.cost:'—'}</td><td>${r.path?r.path.length-1:'—'}</td><td>${r.exp.length}</td><td>${r.ms.toFixed(3)}</td></tr>`);
+if(a)T.push(`<tr><td>Q-оқыту (Q-learning), ${a.rw.length} эпизод</td><td>${a.path?pc(M,a.path):'—'}</td><td>${a.path?a.path.length-1:'—'}</td><td>${a.st.reduce((p,c)=>p+c,0)}</td><td>${(a.secs*1000).toFixed(1)}</td></tr>`);
+const mx=Math.max(...rows.map(([,r])=>r.exp.length));
+v.innerHTML=`<div class="card" style="overflow-x:auto"><table><tr><th>Алгоритм</th><th>Жол құны</th><th>Қадам</th><th>Қарастырылған түйін</th><th>Уақыт, мс</th></tr>${T.join('')}</table><p class="mut">Q-оқыту үшін «түйін» = оқыту кезіндегі барлық қадам саны. Эвристикалық іздеу (A*) мен UCS оңтайлы жолды бірден табады, Q-оқыту көп эпизодтан кейін ғана оңтайлы жолға жақындайды.</p></div>`
++`<div class="card" style="margin-top:20px"><b>Қарастырылған түйін саны</b> <span class="mut">(аз болса жақсы)</span><div class="bars">${rows.map(([n,r])=>`<div>${r.exp.length}<i style="height:${Math.max(4,r.exp.length/mx*110)}px${n==NAMES.astar?';background:var(--blue)':''}"></i>${n.match(/\((.*)\)/)[1]}</div>`).join('')}</div></div>`}
+gen();
+</script></body></html>
